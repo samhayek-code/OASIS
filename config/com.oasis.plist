@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Unique identifier for this launch agent -->
+    <key>Label</key>
+    <string>com.oasis.organizer</string>
+
+    <!-- Path to the script to run -->
+    <!-- Note: __HOME__ is replaced by install.sh with actual home directory -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__HOME__/.local/bin/oasis</string>
+    </array>
+
+    <!-- Run daily at midnight -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>0</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Also run when the agent is first loaded (on login or after install) -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Standard output and error logging -->
+    <key>StandardOutPath</key>
+    <string>__HOME__/.config/oasis/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.config/oasis/stderr.log</string>
+
+    <!-- Environment variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
