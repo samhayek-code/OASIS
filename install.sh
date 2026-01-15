@@ -14,7 +14,26 @@ fi
 
 # Configuration
 APP_NAME="oasis"
+REPO_URL="https://raw.githubusercontent.com/samhayek-code/OASIS/main"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Detect if running from repo or via curl pipe
+if [[ -f "$SCRIPT_DIR/src/oasis.sh" ]]; then
+    INSTALL_MODE="local"
+else
+    INSTALL_MODE="remote"
+    SCRIPT_DIR=$(mktemp -d)
+    trap "rm -rf '$SCRIPT_DIR'" EXIT
+
+    mkdir -p "$SCRIPT_DIR/src" "$SCRIPT_DIR/config" "$SCRIPT_DIR/shortcuts"
+
+    echo "Downloading OASIS files..."
+    curl -fsSL "$REPO_URL/src/oasis.sh" -o "$SCRIPT_DIR/src/oasis.sh" || { echo "Failed to download oasis.sh"; exit 1; }
+    curl -fsSL "$REPO_URL/config/com.oasis.plist" -o "$SCRIPT_DIR/config/com.oasis.plist" || { echo "Failed to download plist"; exit 1; }
+    curl -fsSL "$REPO_URL/shortcuts/Enable%20OASIS.command" -o "$SCRIPT_DIR/shortcuts/Enable OASIS.command" 2>/dev/null || true
+    curl -fsSL "$REPO_URL/shortcuts/Disable%20OASIS.command" -o "$SCRIPT_DIR/shortcuts/Disable OASIS.command" 2>/dev/null || true
+    curl -fsSL "$REPO_URL/shortcuts/Toggle%20OASIS.command" -o "$SCRIPT_DIR/shortcuts/Toggle OASIS.command" 2>/dev/null || true
+fi
 
 # Paths
 CONFIG_DIR="$HOME/.config/$APP_NAME"
