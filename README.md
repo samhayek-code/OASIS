@@ -44,7 +44,7 @@ OASIS automatically sorts files in your Downloads folder into:
 ### Quick Install
 
 ```bash
-git clone https://github.com/YOURUSERNAME/OASIS.git
+git clone https://github.com/samhayek-code/OASIS.git
 cd OASIS
 ./install.sh
 ```
@@ -52,10 +52,8 @@ cd OASIS
 ### One-liner
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOURUSERNAME/OASIS/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/samhayek-code/OASIS/main/install.sh | bash
 ```
-
-> **Note:** Replace `YOURUSERNAME` with your GitHub username after creating the repo.
 
 ## Usage
 
