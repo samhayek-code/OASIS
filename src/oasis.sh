@@ -78,7 +78,8 @@ get_category() {
 days_in_month() {
     local year="$1"
     local month="$2"
-    date -j -f "%Y-%m-%d" "${year}-${month}-01" -v+1m -v-1d "+%d" 2>/dev/null
+    # Note: -v flags must come before -f on macOS
+    date -j -v+1m -v-1d -f "%Y-%m-%d" "${year}-${month}-01" "+%d" 2>/dev/null
 }
 
 # Get week info for a given date

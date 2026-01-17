@@ -6,12 +6,13 @@
     <key>Label</key>
     <string>com.oasis.organizer</string>
 
-    <!-- Path to the script to run -->
+    <!-- Launch the OASIS app (which has Full Disk Access) -->
     <!-- Note: __HOME__ is replaced by install.sh with actual home directory -->
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>__HOME__/.local/bin/oasis</string>
+        <string>/usr/bin/open</string>
+        <string>-a</string>
+        <string>__HOME__/.local/share/oasis/OASIS.app</string>
     </array>
 
     <!-- Run daily at midnight -->
@@ -25,19 +26,12 @@
 
     <!-- Also run when the agent is first loaded (on login or after install) -->
     <key>RunAtLoad</key>
-    <true/>
+    <false/>
 
     <!-- Standard output and error logging -->
     <key>StandardOutPath</key>
     <string>__HOME__/.config/oasis/stdout.log</string>
     <key>StandardErrorPath</key>
     <string>__HOME__/.config/oasis/stderr.log</string>
-
-    <!-- Environment variables -->
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-    </dict>
 </dict>
 </plist>

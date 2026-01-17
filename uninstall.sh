@@ -6,10 +6,12 @@
 
 # Configuration
 APP_NAME="oasis"
+APP_DISPLAY_NAME="OASIS"
 
 # Paths
 CONFIG_DIR="$HOME/.config/$APP_NAME"
 BIN_DIR="$HOME/.local/bin"
+APP_DIR="$HOME/.local/share/$APP_NAME"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 PLIST_NAME="com.$APP_NAME.plist"
 
@@ -70,7 +72,18 @@ else
     print_warning "Script not found"
 fi
 
-# Step 4: Remove config directory
+# Step 4: Remove OASIS app
+print_step "Removing OASIS app..."
+if [[ -d "$APP_DIR/$APP_DISPLAY_NAME.app" ]]; then
+    rm -rf "$APP_DIR/$APP_DISPLAY_NAME.app"
+    print_success "App removed from $APP_DIR"
+    # Also remove the app directory if empty
+    rmdir "$APP_DIR" 2>/dev/null || true
+else
+    print_warning "App not found"
+fi
+
+# Step 5: Remove config directory
 print_step "Removing configuration..."
 if [[ -d "$CONFIG_DIR" ]]; then
     rm -rf "$CONFIG_DIR"
@@ -79,7 +92,11 @@ else
     print_warning "Configuration directory not found"
 fi
 
-# Step 5: Note about Shortcuts (manual removal needed)
+# Step 6: Note about Full Disk Access and Shortcuts
+print_step "Note about manual cleanup..."
+print_warning "You may want to remove OASIS from Full Disk Access in System Settings."
+echo "        System Settings → Privacy & Security → Full Disk Access"
+echo ""
 print_step "Note about Shortcuts..."
 print_warning "macOS Shortcuts must be removed manually if desired."
 echo "        Open Shortcuts app and delete: Enable/Disable/Toggle OASIS"
@@ -90,7 +107,7 @@ echo "        Open Shortcuts app and delete: Enable/Disable/Toggle OASIS"
 
 echo ""
 echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║     Uninstallation Complete! 👋       ║${NC}"
+echo -e "${GREEN}║      Uninstallation Complete!         ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
 echo ""
 echo "OASIS has been removed from your system."

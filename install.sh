@@ -14,6 +14,7 @@ fi
 
 # Configuration
 APP_NAME="oasis"
+APP_DISPLAY_NAME="OASIS"
 REPO_URL="https://raw.githubusercontent.com/samhayek-code/OASIS/main"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -38,6 +39,7 @@ fi
 # Paths
 CONFIG_DIR="$HOME/.config/$APP_NAME"
 BIN_DIR="$HOME/.local/bin"
+APP_DIR="$HOME/.local/share/$APP_NAME"
 LAUNCH_AGENTS_DIR="$HOME/Library/LaunchAgents"
 PLIST_NAME="com.$APP_NAME.plist"
 
@@ -92,7 +94,21 @@ cp "$SCRIPT_DIR/src/oasis.sh" "$BIN_DIR/$APP_NAME"
 chmod +x "$BIN_DIR/$APP_NAME"
 print_success "Script installed to $BIN_DIR/$APP_NAME"
 
-# Step 4: Process and install launchd plist
+# Step 4: Create AppleScript app wrapper
+# This app is needed because macOS restricts launchd agents from accessing
+# ~/Downloads directly. The app can be granted Full Disk Access to work around this.
+print_step "Creating OASIS app..."
+mkdir -p "$APP_DIR"
+
+# Remove existing app if present
+rm -rf "$APP_DIR/$APP_DISPLAY_NAME.app" 2>/dev/null || true
+
+# Create AppleScript app that runs the oasis script
+osacompile -o "$APP_DIR/$APP_DISPLAY_NAME.app" -e "do shell script \"$BIN_DIR/$APP_NAME run\""
+
+print_success "App created at $APP_DIR/$APP_DISPLAY_NAME.app"
+
+# Step 5: Process and install launchd plist
 print_step "Installing launch agent..."
 
 # Unload existing agent if present
@@ -107,12 +123,12 @@ sed "s|__HOME__|$HOME|g" "$SCRIPT_DIR/config/$PLIST_NAME" > "$LAUNCH_AGENTS_DIR/
 
 print_success "Launch agent installed to $LAUNCH_AGENTS_DIR/$PLIST_NAME"
 
-# Step 5: Load the launch agent
+# Step 6: Load the launch agent
 print_step "Loading launch agent..."
 launchctl load "$LAUNCH_AGENTS_DIR/$PLIST_NAME"
 print_success "Launch agent loaded"
 
-# Step 6: Copy toggle scripts
+# Step 7: Copy toggle scripts
 print_step "Installing toggle scripts..."
 SHORTCUTS_DEST="$HOME/.config/$APP_NAME/shortcuts"
 mkdir -p "$SHORTCUTS_DEST"
@@ -120,7 +136,7 @@ cp "$SCRIPT_DIR/shortcuts/"*.command "$SHORTCUTS_DEST/" 2>/dev/null || true
 chmod +x "$SHORTCUTS_DEST/"*.command 2>/dev/null || true
 print_success "Toggle scripts installed to $SHORTCUTS_DEST"
 
-# Step 7: Run OASIS once to organize existing files
+# Step 8: Run OASIS once to organize existing files
 print_step "Running initial organization..."
 "$BIN_DIR/$APP_NAME"
 print_success "Initial organization complete"
@@ -134,9 +150,38 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║      Installation Complete!           ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
 echo ""
-echo "OASIS is now running and will organize your Downloads folder"
-echo "automatically every day at midnight."
+
+# =============================================================================
+# Full Disk Access Setup
+# =============================================================================
+
+echo -e "${YELLOW}╔═══════════════════════════════════════╗${NC}"
+echo -e "${YELLOW}║   IMPORTANT: Grant Full Disk Access   ║${NC}"
+echo -e "${YELLOW}╚═══════════════════════════════════════╝${NC}"
 echo ""
+echo "For OASIS to work automatically at midnight, you need to grant"
+echo "the OASIS app Full Disk Access. This is a one-time setup."
+echo ""
+echo -e "${BLUE}Steps:${NC}"
+echo "  1. Open System Settings → Privacy & Security → Full Disk Access"
+echo "  2. Click the + button"
+echo "  3. Press Cmd+Shift+G and paste: $APP_DIR"
+echo "  4. Select OASIS.app and click Open"
+echo ""
+echo -e "${BLUE}Or run this command to open the settings:${NC}"
+echo "  open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'"
+echo ""
+
+# Ask user if they want to open System Settings now
+read -p "Would you like to open Full Disk Access settings now? [Y/n] " -n 1 -r
+echo ""
+if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+    open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"
+    echo ""
+    print_warning "After granting access, OASIS will work automatically at midnight."
+    echo ""
+fi
+
 echo -e "${BLUE}Terminal commands:${NC}"
 echo "  oasis run       Run organization now"
 echo "  oasis enable    Turn on automatic organization"
@@ -147,10 +192,6 @@ echo ""
 echo -e "${BLUE}Quick toggle scripts:${NC}"
 echo "  Double-click these files to toggle OASIS:"
 echo "  $SHORTCUTS_DEST/"
-echo ""
-echo -e "${BLUE}For Spotlight integration:${NC}"
-echo "  See shortcuts/SETUP.md for instructions on creating"
-echo "  macOS Shortcuts for Spotlight access."
 echo ""
 echo -e "${BLUE}Logs:${NC}"
 echo "  cat $CONFIG_DIR/oasis.log"

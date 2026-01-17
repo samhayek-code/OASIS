@@ -55,6 +55,25 @@ cd OASIS
 curl -fsSL https://raw.githubusercontent.com/samhayek-code/OASIS/main/install.sh | bash
 ```
 
+### Granting Full Disk Access
+
+After installation, you'll be prompted to grant Full Disk Access to the OASIS app. This is required for the automatic midnight organization to work (macOS restricts background processes from accessing ~/Downloads).
+
+1. Open **System Settings → Privacy & Security → Full Disk Access**
+2. Click the **+** button
+3. Press **Cmd+Shift+G** and paste: `~/.local/share/oasis`
+4. Select **OASIS.app** and click **Open**
+
+This is a one-time setup. The installer will offer to open System Settings for you.
+
+### Updating
+
+To update OASIS, simply re-run the installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/samhayek-code/OASIS/main/install.sh | bash
+```
+
 ## Usage
 
 ### Terminal Commands
@@ -121,6 +140,8 @@ Config files are stored at `~/.config/oasis/`:
 | `oasis.log` | Activity log |
 | `stdout.log` | Launch agent output |
 | `stderr.log` | Launch agent errors |
+
+The OASIS app is stored at `~/.local/share/oasis/OASIS.app`.
 
 ## Requirements
 
