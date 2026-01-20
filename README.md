@@ -15,8 +15,8 @@ OASIS automatically sorts files in your Downloads folder into:
 
 ```
 ~/Downloads/
-├── January 2026/                     # Monthly archive
-│   ├── Week 1 (Jan 1-5)/             # Weekly container
+├── January 2026/                     # Month folder (created at start of month)
+│   ├── Week 1 (Jan 1-5)/             # Completed weeks roll into month
 │   │   ├── Jan 1/                    # Daily folder
 │   │   │   ├── Images/               # Photos, graphics
 │   │   │   ├── Documents/            # PDFs, Office docs
@@ -24,9 +24,11 @@ OASIS automatically sorts files in your Downloads folder into:
 │   │   │   ├── Audio/                # Music, podcasts
 │   │   │   └── Other/                # Everything else
 │   │   └── Jan 2/
-│   ├── Week 2 (Jan 6-12)/
-│   └── ...
-└── Jan 14/                           # Current day (not rolled up yet)
+│   └── Week 2 (Jan 6-12)/            # Rolled in once Jan 13 arrives
+├── Week 3 (Jan 13-19)/               # Current week (stays at root)
+│   ├── Jan 13/                       # Completed days in current week
+│   └── Jan 14/
+└── photo.png, doc.pdf, ...           # Today's downloads (stay loose)
 ```
 
 ### File Categories
@@ -105,18 +107,24 @@ You can create macOS Shortcuts to control OASIS from Spotlight. See `shortcuts/S
 
 ## How It Works
 
-1. **Daily at midnight** (or on wake/login if asleep), OASIS:
-   - Moves loose files from Downloads into today's dated folder
-   - Sorts them into category subfolders (Images, Documents, etc.)
-   - Rolls up yesterday's folder into the current week folder
-   - Rolls up completed weeks into monthly folders
+1. **Progressive organization** — OASIS builds your folder structure as time passes:
+   - **Month folder** is created at the start of each month (or when you first run OASIS)
+   - **Week folders** are moved into the month folder once the week completes
+   - **Day folders** are moved into their week folder once the day completes
+   - **Loose files** stay in Downloads during the day, then get organized at midnight
 
-2. **Week structure** is aligned to Mon-Sun:
+2. **Daily at midnight** (or on wake/login if asleep), OASIS:
+   - Sorts loose files into dated folders based on **when the file was downloaded** (not when the script runs)
+   - Files from yesterday go into yesterday's folder, even if organized this morning
+   - Today's files stay loose until the next midnight run
+   - Completed days roll into week folders, completed weeks roll into the month folder
+
+3. **Week structure** is aligned to Mon-Sun:
    - Week 1 = 1st of month through first Sunday
    - Week 2+ = Full Monday-Sunday weeks
    - Final week may be partial
 
-3. **Smart handling**:
+4. **Smart handling**:
    - Skips hidden files and partially downloaded files
    - Empty category folders aren't created
    - File conflicts handled with numeric suffixes

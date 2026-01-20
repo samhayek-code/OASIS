@@ -197,16 +197,26 @@ move_file_safe() {
 # Main Organization Functions
 # =============================================================================
 
-organize_loose_files() {
-    local year month day
+ensure_month_folder() {
+    local year month
     year=$(date "+%Y")
     month=$(date "+%m")
-    day=$(date "+%d")
 
-    local today_name
-    today_name=$(format_daily_name "$month" "$day")
-    local today_dir="$DOWNLOADS_DIR/$today_name"
+    local month_name
+    month_name=$(format_monthly_name "$year" "$month")
+    local month_dir="$DOWNLOADS_DIR/$month_name"
+
+    if [[ ! -d "$month_dir" ]]; then
+        mkdir -p "$month_dir"
+        log "Created month folder: $month_name"
+    fi
+}
+
+organize_loose_files() {
+    local today_date
+    today_date=$(date "+%Y-%m-%d")
     local files_organized=0
+    local days_with_files=()
 
     # Find all loose files in Downloads (not in subdirectories, not hidden)
     while IFS= read -r -d '' file; do
@@ -223,31 +233,62 @@ organize_loose_files() {
         [[ "$filename" == *.part ]] && continue
         [[ "$filename" == *.download ]] && continue
 
+        # Get file's modification date
+        local file_date
+        file_date=$(stat -f "%Sm" -t "%Y-%m-%d" "$file" 2>/dev/null)
+
+        # Skip files modified today (they stay loose until midnight)
+        if [[ "$file_date" == "$today_date" ]]; then
+            continue
+        fi
+
+        # Extract year, month, day from file's modification date
+        local file_year file_month file_day
+        file_year=$(stat -f "%Sm" -t "%Y" "$file" 2>/dev/null)
+        file_month=$(stat -f "%Sm" -t "%m" "$file" 2>/dev/null)
+        file_day=$(stat -f "%Sm" -t "%d" "$file" 2>/dev/null)
+
+        # Format the daily folder name based on file's date
+        local day_name
+        day_name=$(format_daily_name "$file_month" "$file_day")
+        local day_dir="$DOWNLOADS_DIR/$day_name"
+
         # Determine category
         local category
         category=$(get_category "$filename")
 
         # Create category directory if needed
-        local category_dir="$today_dir/$category"
+        local category_dir="$day_dir/$category"
         mkdir -p "$category_dir"
 
         # Move file
         move_file_safe "$file" "$category_dir"
         ((files_organized++))
 
+        # Track which days received files
+        if [[ ! " ${days_with_files[*]} " =~ " ${day_name} " ]]; then
+            days_with_files+=("$day_name")
+        fi
+
     done < <(find "$DOWNLOADS_DIR" -maxdepth 1 -type f -print0 2>/dev/null)
 
-    # Remove empty category directories
-    if [[ -d "$today_dir" ]]; then
-        find "$today_dir" -type d -empty -delete 2>/dev/null
-    fi
+    # Clean up empty category directories in any daily folders we touched
+    for day_name in "${days_with_files[@]}"; do
+        local day_dir="$DOWNLOADS_DIR/$day_name"
+        if [[ -d "$day_dir" ]]; then
+            find "$day_dir" -type d -empty -delete 2>/dev/null
+        fi
+        # Remove day directory if it's empty
+        if [[ -d "$day_dir" ]] && [[ -z "$(ls -A "$day_dir" 2>/dev/null)" ]]; then
+            rmdir "$day_dir" 2>/dev/null
+        fi
+    done
 
-    # Remove today's directory if it's empty (no files were organized)
-    if [[ -d "$today_dir" ]] && [[ -z "$(ls -A "$today_dir" 2>/dev/null)" ]]; then
-        rmdir "$today_dir" 2>/dev/null
+    if [[ $files_organized -gt 0 ]]; then
+        log "Organized $files_organized files from previous days"
+    else
+        log "No files from previous days to organize"
     fi
-
-    log "Organized $files_organized files into $today_dir"
 }
 
 rollup_daily_to_weekly() {
@@ -317,9 +358,10 @@ rollup_daily_to_weekly() {
 }
 
 rollup_weekly_to_monthly() {
-    local current_year current_month
+    local current_year current_month current_day
     current_year=$(date "+%Y")
     current_month=$((10#$(date "+%m")))
+    current_day=$((10#$(date "+%d")))
 
     # Find all week folders matching pattern "Week N (Mon D-D)"
     while IFS= read -r -d '' week_dir; do
@@ -346,15 +388,25 @@ rollup_weekly_to_monthly() {
                 continue
             fi
 
-            # Don't roll up if this is the current month
-            if [[ "$month_num" -eq "$current_month" ]]; then
-                continue
-            fi
-
-            # Determine year
+            # Determine year (assume current year, or previous year if month > current month)
             local year="$current_year"
             if [[ "$month_num" -gt "$current_month" ]]; then
                 year=$((current_year - 1))
+            fi
+
+            # Check if the week is complete (today is past the week's end date)
+            # A week is complete if we're past that week's end day
+            local week_complete=false
+            if [[ "$month_num" -lt "$current_month" ]]; then
+                # Previous month - week is complete
+                week_complete=true
+            elif [[ "$month_num" -eq "$current_month" ]] && [[ "$current_day" -gt "$end_day" ]]; then
+                # Current month but we're past the week's end day
+                week_complete=true
+            fi
+
+            if [[ "$week_complete" != "true" ]]; then
+                continue
             fi
 
             # Format month folder name
@@ -419,13 +471,16 @@ cmd_run() {
 
     log "Starting OASIS organization run..."
 
-    # Step 1: Organize any loose files in Downloads
+    # Step 1: Ensure current month folder exists
+    ensure_month_folder
+
+    # Step 2: Organize loose files from previous days (today's files stay loose)
     organize_loose_files
 
-    # Step 2: Roll up completed days into week folders
+    # Step 3: Roll up completed days into week folders
     rollup_daily_to_weekly
 
-    # Step 3: Roll up completed weeks into month folders
+    # Step 4: Roll up completed weeks into month folders
     rollup_weekly_to_monthly
 
     log "OASIS organization complete."
