@@ -71,10 +71,13 @@ print_error() {
 # =============================================================================
 
 echo ""
-echo -e "${GREEN}╔═══════════════════════════════════════╗${NC}"
-echo -e "${GREEN}║      OASIS Downloads Organizer        ║${NC}"
-echo -e "${GREEN}║            Installation               ║${NC}"
-echo -e "${GREEN}╚═══════════════════════════════════════╝${NC}"
+echo -e "${GREEN}   ██████╗  █████╗ ███████╗██╗███████╗${NC}"
+echo -e "${GREEN}  ██╔═══██╗██╔══██╗██╔════╝██║██╔════╝${NC}"
+echo -e "${GREEN}  ██║   ██║███████║███████╗██║███████╗${NC}"
+echo -e "${GREEN}  ██║   ██║██╔══██║╚════██║██║╚════██║${NC}"
+echo -e "${GREEN}  ╚██████╔╝██║  ██║███████║██║███████║${NC}"
+echo -e "${GREEN}   ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝╚══════╝${NC}"
+echo -e "  ${BLUE}(Organized Automatic Sorting & Intelligent Structure)${NC}"
 echo ""
 
 # Step 1: Create config directory
