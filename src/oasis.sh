@@ -38,6 +38,50 @@ AUDIO_EXT="mp3 wav aac flac ogg m4a wma aiff aif alac"
 MONTH_NAMES=("" "January" "February" "March" "April" "May" "June" "July" "August" "September" "October" "November" "December")
 MONTH_ABBREV=("" "Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec")
 
+# Get file's download date (when it was added to Downloads folder)
+# Priority: kMDItemDateAdded > birth time > modification time
+get_file_date() {
+    local file="$1"
+    local format="$2"  # "Y" for year, "m" for month, "d" for day, "Y-m-d" for full date
+
+    # Try kMDItemDateAdded first (Spotlight metadata - most accurate for downloads)
+    local date_added
+    date_added=$(mdls -raw -name kMDItemDateAdded "$file" 2>/dev/null)
+
+    if [[ -n "$date_added" && "$date_added" != "(null)" ]]; then
+        # Parse the date (format: 2026-01-23 08:00:03 +0000)
+        case "$format" in
+            Y)    echo "$date_added" | cut -d'-' -f1 ;;
+            m)    echo "$date_added" | cut -d'-' -f2 ;;
+            d)    echo "$date_added" | cut -d'-' -f3 | cut -d' ' -f1 ;;
+            Y-m-d) echo "$date_added" | cut -d' ' -f1 ;;
+        esac
+        return
+    fi
+
+    # Fallback to birth time (file creation on this filesystem)
+    local birth_date
+    birth_date=$(stat -f "%SB" -t "%Y-%m-%d" "$file" 2>/dev/null)
+
+    if [[ -n "$birth_date" ]]; then
+        case "$format" in
+            Y)    echo "$birth_date" | cut -d'-' -f1 ;;
+            m)    echo "$birth_date" | cut -d'-' -f2 ;;
+            d)    echo "$birth_date" | cut -d'-' -f3 ;;
+            Y-m-d) echo "$birth_date" ;;
+        esac
+        return
+    fi
+
+    # Last resort: modification time (original behavior)
+    case "$format" in
+        Y)    stat -f "%Sm" -t "%Y" "$file" 2>/dev/null ;;
+        m)    stat -f "%Sm" -t "%m" "$file" 2>/dev/null ;;
+        d)    stat -f "%Sm" -t "%d" "$file" 2>/dev/null ;;
+        Y-m-d) stat -f "%Sm" -t "%Y-%m-%d" "$file" 2>/dev/null ;;
+    esac
+}
+
 # =============================================================================
 # Helper Functions
 # =============================================================================
@@ -233,20 +277,20 @@ organize_loose_files() {
         [[ "$filename" == *.part ]] && continue
         [[ "$filename" == *.download ]] && continue
 
-        # Get file's modification date
+        # Get file's download date (when it was added to Downloads)
         local file_date
-        file_date=$(stat -f "%Sm" -t "%Y-%m-%d" "$file" 2>/dev/null)
+        file_date=$(get_file_date "$file" "Y-m-d")
 
-        # Skip files modified today (they stay loose until midnight)
+        # Skip files added today (they stay loose until midnight)
         if [[ "$file_date" == "$today_date" ]]; then
             continue
         fi
 
-        # Extract year, month, day from file's modification date
+        # Extract year, month, day from file's download date
         local file_year file_month file_day
-        file_year=$(stat -f "%Sm" -t "%Y" "$file" 2>/dev/null)
-        file_month=$(stat -f "%Sm" -t "%m" "$file" 2>/dev/null)
-        file_day=$(stat -f "%Sm" -t "%d" "$file" 2>/dev/null)
+        file_year=$(get_file_date "$file" "Y")
+        file_month=$(get_file_date "$file" "m")
+        file_day=$(get_file_date "$file" "d")
 
         # Format the daily folder name based on file's date
         local day_name
