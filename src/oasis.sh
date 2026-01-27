@@ -49,14 +49,19 @@ get_file_date() {
     date_added=$(mdls -raw -name kMDItemDateAdded "$file" 2>/dev/null)
 
     if [[ -n "$date_added" && "$date_added" != "(null)" ]]; then
-        # Parse the date (format: 2026-01-23 08:00:03 +0000)
-        case "$format" in
-            Y)    echo "$date_added" | cut -d'-' -f1 ;;
-            m)    echo "$date_added" | cut -d'-' -f2 ;;
-            d)    echo "$date_added" | cut -d'-' -f3 | cut -d' ' -f1 ;;
-            Y-m-d) echo "$date_added" | cut -d' ' -f1 ;;
-        esac
-        return
+        # Convert UTC timestamp to local time (Spotlight returns UTC like "2026-01-26 05:53:54 +0000")
+        local local_date
+        local_date=$(date -j -f "%Y-%m-%d %H:%M:%S %z" "$date_added" "+%Y-%m-%d" 2>/dev/null)
+
+        if [[ -n "$local_date" ]]; then
+            case "$format" in
+                Y)     echo "$local_date" | cut -d'-' -f1 ;;
+                m)     echo "$local_date" | cut -d'-' -f2 ;;
+                d)     echo "$local_date" | cut -d'-' -f3 ;;
+                Y-m-d) echo "$local_date" ;;
+            esac
+            return
+        fi
     fi
 
     # Fallback to birth time (file creation on this filesystem)
