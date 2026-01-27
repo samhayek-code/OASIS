@@ -81,12 +81,14 @@ curl -fsSL https://raw.githubusercontent.com/samhayek-code/OASIS/main/install.sh
 ### Terminal Commands
 
 ```bash
-oasis run       # Organize Downloads now
-oasis enable    # Turn on automatic organization
-oasis disable   # Turn off automatic organization
-oasis toggle    # Switch between on/off
-oasis status    # Check if enabled or disabled
-oasis help      # Show help
+oasis run              # Organize Downloads now
+oasis run --dry-run    # Preview what would be organized (no changes made)
+oasis enable           # Turn on automatic organization
+oasis disable          # Turn off automatic organization
+oasis toggle           # Switch between on/off
+oasis status           # Check if enabled or disabled
+oasis version          # Show version number
+oasis help             # Show help
 ```
 
 ### Quick Toggle Scripts
@@ -125,9 +127,12 @@ You can create macOS Shortcuts to control OASIS from Spotlight. See `shortcuts/S
    - Final week may be partial
 
 4. **Smart handling**:
-   - Skips hidden files and partially downloaded files
+   - Skips hidden files and partially downloaded files (`.crdownload`, `.part`, `.tmp`, etc.)
    - Empty category folders aren't created
    - File conflicts handled with numeric suffixes
+   - Folder merging when organizing overlapping date ranges
+   - Automatic log rotation (keeps last 1000 entries)
+   - Timezone-aware date detection using Spotlight metadata
 
 ## Uninstallation
 
@@ -164,6 +169,22 @@ OASIS is designed with security in mind:
 - Handles filenames with spaces and special characters safely
 - No network access, no external dependencies
 - Open source — inspect the code yourself
+
+## Changelog
+
+### v1.1.0
+- **Fixed**: Timezone bug where evening downloads were dated incorrectly (UTC→local conversion)
+- **Fixed**: Folder merge conflicts now handled properly (no more duplicate week folders)
+- **Fixed**: Year detection for files from previous years
+- **Added**: `--dry-run` flag to preview changes without making them
+- **Added**: `version` command
+- **Added**: Log rotation (keeps last 1000 entries)
+- **Improved**: Single date lookup per file (4x fewer system calls)
+- **Improved**: Better partial download detection (`.tmp`, `~` suffix, etc.)
+- **Improved**: Long filename handling (truncates to fit macOS limits)
+
+### v1.0.0
+- Initial release
 
 ## License
 
