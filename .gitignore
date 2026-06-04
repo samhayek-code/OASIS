@@ -13,3 +13,7 @@
 
 # Logs (local testing)
 *.log
+
+# Local agent / session tooling (not for the repo)
+.claude/
+.entire/
