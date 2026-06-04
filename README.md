@@ -7,8 +7,7 @@ A lightweight macOS utility that automatically organizes your Downloads folder i
 ## What It Does
 
 OASIS automatically sorts files in your Downloads folder into:
-- **Daily folders** (e.g., `Jan 14/`) with category subfolders
-- **Weekly folders** (e.g., `Week 2 (Jan 6-12)/`) containing daily folders
+- **Weekly folders** (e.g., `Week 2 (Jan 6-12)/`) with category subfolders
 - **Monthly folders** (e.g., `January 2026/`) containing weekly folders
 
 ### Folder Structure
@@ -16,19 +15,20 @@ OASIS automatically sorts files in your Downloads folder into:
 ```
 ~/Downloads/
 ├── January 2026/                     # Month folder (created at start of month)
-│   ├── Week 1 (Jan 1-5)/             # Completed weeks roll into month
-│   │   ├── Jan 1/                    # Daily folder
-│   │   │   ├── Images/               # Photos, graphics
-│   │   │   ├── Documents/            # PDFs, Office docs
-│   │   │   ├── Videos/               # Video files
-│   │   │   ├── Audio/                # Music, podcasts
-│   │   │   └── Other/                # Everything else
-│   │   └── Jan 2/
-│   └── Week 2 (Jan 6-12)/            # Rolled in once Jan 13 arrives
+│   ├── Week 1 (Jan 1-5)/             # Completed weeks roll into the month
+│   │   ├── Images/                   # Photos, graphics
+│   │   ├── Documents/                # PDFs, Office docs
+│   │   ├── Videos/                   # Video files
+│   │   ├── Audio/                    # Music, podcasts
+│   │   └── Other/                    # Everything else
+│   └── Week 2 (Jan 6-12)/
+│       ├── Images/
+│       └── Documents/
 ├── Week 3 (Jan 13-19)/               # Current week (stays at root)
-│   ├── Jan 13/                       # Completed days in current week
-│   └── Jan 14/
-└── photo.png, doc.pdf, ...           # Today's downloads (stay loose)
+│   ├── Images/                       # Files from completed days this week
+│   ├── Documents/
+│   └── Folders/                      # Downloaded folders, kept whole
+└── photo.png, my-folder/, ...        # Today's downloads (stay loose)
 ```
 
 ### File Categories
@@ -40,6 +40,7 @@ OASIS automatically sorts files in your Downloads folder into:
 | Videos | mp4, mov, avi, mkv, webm, m4v, etc. |
 | Audio | mp3, wav, aac, flac, ogg, m4a, etc. |
 | Other | Everything else (dmg, zip, pkg, etc.) |
+| Folders | Any downloaded folder, kept whole (incl. `.app` bundles) |
 
 ## Installation
 
@@ -112,14 +113,13 @@ You can create macOS Shortcuts to control OASIS from Spotlight. See `shortcuts/S
 1. **Progressive organization** — OASIS builds your folder structure as time passes:
    - **Month folder** is created at the start of each month (or when you first run OASIS)
    - **Week folders** are moved into the month folder once the week completes
-   - **Day folders** are moved into their week folder once the day completes
-   - **Loose files** stay in Downloads during the day, then get organized at midnight
+   - **Loose files** stay in Downloads during the day, then get sorted into the current week's folder at midnight
 
 2. **Daily at midnight** (or on wake/login if asleep), OASIS:
-   - Sorts loose files into dated folders based on **when the file was downloaded** (not when the script runs)
-   - Files from yesterday go into yesterday's folder, even if organized this morning
+   - Sorts loose files into the matching week folder based on **when the file was downloaded** (not when the script runs)
+   - Files from earlier this week go into this week's folder; files from a previous week go into that week's folder
    - Today's files stay loose until the next midnight run
-   - Completed days roll into week folders, completed weeks roll into the month folder
+   - Completed weeks roll into the month folder
 
 3. **Week structure** is aligned to Mon-Sun:
    - Week 1 = 1st of month through first Sunday
@@ -127,7 +127,8 @@ You can create macOS Shortcuts to control OASIS from Spotlight. See `shortcuts/S
    - Final week may be partial
 
 4. **Smart handling**:
-   - Skips hidden files and partially downloaded files (`.crdownload`, `.part`, `.tmp`, etc.)
+   - Downloaded **folders** are sorted whole into a `Folders/` bucket (contents aren't scanned); OASIS's own week/month folders are never touched
+   - Skips hidden files and partially downloaded files (`.crdownload`, `.part`, `.tmp`, `.download` bundles, etc.)
    - Empty category folders aren't created
    - File conflicts handled with numeric suffixes
    - Folder merging when organizing overlapping date ranges
@@ -171,6 +172,13 @@ OASIS is designed with security in mind:
 - Open source — inspect the code yourself
 
 ## Changelog
+
+### v1.3.0
+- **Added**: Downloaded **folders** are now sorted too — into a `Folders/` bucket inside the week folder (kept whole, contents not scanned). `.app` bundles included; OASIS's own week/month folders are never touched, and Safari `.download` bundles are skipped.
+
+### v1.2.0
+- **Changed**: Files are now sorted into a single **weekly** folder (with category subfolders) instead of per-day folders. Completed weeks still roll into monthly folders.
+- **Added**: Automatic migration — existing daily folders are flattened into their weekly folder on the next run (no manual cleanup needed).
 
 ### v1.1.0
 - **Fixed**: Timezone bug where evening downloads were dated incorrectly (UTC→local conversion)

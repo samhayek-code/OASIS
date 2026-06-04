@@ -3,10 +3,10 @@
 # =============================================================================
 # OASIS - Organized Automatic Sorting & Intelligent Structure
 # A Downloads folder organizer for macOS
-# Version: 1.1.0
+# Version: 1.3.0
 # =============================================================================
 
-VERSION="1.1.0"
+VERSION="1.3.0"
 
 # Configuration - Change this to rename the app
 APP_NAME="oasis"
@@ -156,6 +156,28 @@ get_category() {
     fi
 }
 
+# Check if a folder name is one of OASIS's own structural folders (week or
+# month folders). These must never be re-sorted into a category bucket.
+is_oasis_folder() {
+    local name="$1"
+
+    # Week folder: "Week 1 (Jun 1-7)"
+    if [[ "$name" =~ ^Week\ [0-9]+\ \([A-Z][a-z]{2}\ [0-9]+-[0-9]+\)$ ]]; then
+        return 0
+    fi
+
+    # Month folder: "January 2026"
+    local m
+    for m in "${MONTH_NAMES[@]}"; do
+        [[ -z "$m" ]] && continue
+        if [[ "$name" == "$m "[0-9][0-9][0-9][0-9] ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 # Check if file is a partial/in-progress download
 is_partial_download() {
     local filename="$1"
@@ -236,15 +258,6 @@ get_week_info() {
     echo "${week_num}|${week_start}|${week_end}"
 }
 
-# Format daily folder name: "Jan 14"
-format_daily_name() {
-    local month="$1"
-    local day="$2"
-    month=$((10#$month))
-    day=$((10#$day))
-    echo "${MONTH_ABBREV[$month]} $day"
-}
-
 # Format weekly folder name: "Week 1 (Jan 1-5)"
 format_weekly_name() {
     local month="$1"
@@ -306,6 +319,36 @@ move_file_safe() {
 
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "  Would move: $src -> $dest"
+    else
+        mv "$src" "$dest" 2>/dev/null
+    fi
+}
+
+# Move a directory into dest_dir, handling name conflicts by appending a
+# numeric suffix. Keeps the full folder name intact (no extension splitting).
+move_dir_safe() {
+    local src="$1"
+    local dest_dir="$2"
+    local name dest
+    local counter=1
+
+    name=$(basename "$src")
+    dest="$dest_dir/$name"
+
+    # If a folder with the same name exists, add a number suffix
+    while [[ -e "$dest" ]]; do
+        dest="$dest_dir/${name} (${counter})"
+        ((counter++))
+
+        # Safety: prevent infinite loop
+        if [[ $counter -gt 9999 ]]; then
+            log "Error: Too many conflicting folder names for $name"
+            return 1
+        fi
+    done
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "  Would move folder: $src -> $dest"
     else
         mv "$src" "$dest" 2>/dev/null
     fi
@@ -378,35 +421,46 @@ ensure_month_folder() {
 organize_loose_files() {
     local today_date
     today_date=$(date "+%Y-%m-%d")
-    local files_organized=0
-    local days_with_files=()
+    local items_organized=0
+    local weeks_with_files=()
 
-    # Find all loose files in Downloads (not in subdirectories, not hidden)
-    while IFS= read -r -d '' file; do
-        # Skip if it's a directory
-        [[ -d "$file" ]] && continue
+    # Find all loose items in the Downloads root — files and folders, not hidden.
+    # -mindepth 1 excludes the Downloads dir itself; symlinks are ignored.
+    while IFS= read -r -d '' item; do
+        # Skip .DS_Store and other hidden items
+        local itemname
+        itemname=$(basename "$item")
+        [[ "$itemname" == .* ]] && continue
 
-        # Skip .DS_Store and other hidden files
-        local filename
-        filename=$(basename "$file")
-        [[ "$filename" == .* ]] && continue
-
-        # Skip partially downloaded files
-        if is_partial_download "$filename"; then
+        # Skip partial/in-progress downloads (covers Safari ".download" bundles)
+        if is_partial_download "$itemname"; then
             continue
         fi
 
-        # Get file's download date (single call - optimized)
+        # Pick the destination category. Directories go in the "Folders" bucket
+        # (kept whole, not scanned); files are categorized by extension. OASIS's
+        # own week/month folders are left untouched.
+        local category
+        if [[ -d "$item" ]]; then
+            if is_oasis_folder "$itemname"; then
+                continue
+            fi
+            category="Folders"
+        else
+            category=$(get_category "$itemname")
+        fi
+
+        # Get the item's download date (single call - optimized)
         local file_date
-        file_date=$(get_file_date "$file")
+        file_date=$(get_file_date "$item")
 
-        # Skip files with undeterminable dates
+        # Skip items with undeterminable dates
         if [[ -z "$file_date" || ! "$file_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-            log "Warning: Could not determine date for $filename, skipping"
+            log "Warning: Could not determine date for $itemname, skipping"
             continue
         fi
 
-        # Skip files added today (they stay loose until midnight)
+        # Skip items added today (they stay loose until midnight)
         if [[ "$file_date" == "$today_date" ]]; then
             continue
         fi
@@ -417,136 +471,166 @@ organize_loose_files() {
         file_month=$(parse_date_month "$file_date")
         file_day=$(parse_date_day "$file_date")
 
-        # Format the daily folder name based on file's date
-        local day_name
-        day_name=$(format_daily_name "$file_month" "$file_day")
-        local day_dir="$DOWNLOADS_DIR/$day_name"
+        # Determine which week of the month this item belongs to
+        local week_info week_num week_start week_end
+        week_info=$(get_week_info "$file_year" "$file_month" "$file_day")
+        week_num=$(echo "$week_info" | cut -d'|' -f1)
+        week_start=$(echo "$week_info" | cut -d'|' -f2)
+        week_end=$(echo "$week_info" | cut -d'|' -f3)
 
-        # Determine category
-        local category
-        category=$(get_category "$filename")
+        # Format the weekly folder name based on the item's date
+        local week_name
+        week_name=$(format_weekly_name "$file_month" "$week_num" "$week_start" "$week_end")
+        local week_dir="$DOWNLOADS_DIR/$week_name"
 
         # Create category directory if needed
-        local category_dir="$day_dir/$category"
+        local category_dir="$week_dir/$category"
 
         if [[ "$DRY_RUN" == "true" ]]; then
-            echo "  Would organize: $filename -> $day_name/$category/"
+            echo "  Would organize: $itemname -> $week_name/$category/"
         else
             mkdir -p "$category_dir"
         fi
 
-        # Move file
-        move_file_safe "$file" "$category_dir"
-        ((files_organized++))
+        # Move the item (folder-aware for directories)
+        if [[ -d "$item" ]]; then
+            move_dir_safe "$item" "$category_dir"
+        else
+            move_file_safe "$item" "$category_dir"
+        fi
+        ((items_organized++))
 
-        # Track which days received files (with year for proper rollup)
-        local day_key="${file_year}|${file_month}|${file_day}|${day_name}"
-        if [[ ! " ${days_with_files[*]} " =~ " ${day_key} " ]]; then
-            days_with_files+=("$day_key")
+        # Track which week folders received items (for cleanup)
+        local already_tracked=false
+        local w
+        for w in "${weeks_with_files[@]}"; do
+            if [[ "$w" == "$week_name" ]]; then
+                already_tracked=true
+                break
+            fi
+        done
+        if [[ "$already_tracked" == false ]]; then
+            weeks_with_files+=("$week_name")
         fi
 
-    done < <(find "$DOWNLOADS_DIR" -maxdepth 1 -type f -print0 2>/dev/null)
+    done < <(find "$DOWNLOADS_DIR" -mindepth 1 -maxdepth 1 \( -type f -o -type d \) -print0 2>/dev/null)
 
-    # Clean up empty category directories in any daily folders we touched
+    # Clean up empty category directories in any week folders we touched.
+    # Only top-level category dirs are removed — never the contents of a moved
+    # folder, so an empty downloaded folder still survives in the Folders bucket.
     if [[ "$DRY_RUN" != "true" ]]; then
-        for day_key in "${days_with_files[@]}"; do
-            local day_name="${day_key##*|}"
-            local day_dir="$DOWNLOADS_DIR/$day_name"
-            if [[ -d "$day_dir" ]]; then
-                find "$day_dir" -type d -empty -delete 2>/dev/null
+        for week_name in "${weeks_with_files[@]}"; do
+            local week_dir="$DOWNLOADS_DIR/$week_name"
+            if [[ -d "$week_dir" ]]; then
+                find "$week_dir" -mindepth 1 -maxdepth 1 -type d -empty -delete 2>/dev/null
             fi
-            # Remove day directory if it's empty
-            if [[ -d "$day_dir" ]] && [[ -z "$(ls -A "$day_dir" 2>/dev/null)" ]]; then
-                rmdir "$day_dir" 2>/dev/null
+            # Remove week directory if it ended up empty
+            if [[ -d "$week_dir" ]] && [[ -z "$(ls -A "$week_dir" 2>/dev/null)" ]]; then
+                rmdir "$week_dir" 2>/dev/null
             fi
         done
     fi
 
-    if [[ $files_organized -gt 0 ]]; then
-        log "Organized $files_organized files from previous days"
+    if [[ $items_organized -gt 0 ]]; then
+        log "Organized $items_organized items from previous days"
     else
-        log "No files from previous days to organize"
+        log "No files or folders from previous days to organize"
     fi
 }
 
-rollup_daily_to_weekly() {
+# Migration helper: flatten any pre-existing daily folders ("Mon D") created by
+# older OASIS versions into their weekly folder's category subfolders.
+# Idempotent — once no daily folders remain, this does nothing.
+flatten_daily_folders() {
     local current_year current_month current_day
     current_year=$(date "+%Y")
-    current_month=$(date "+%m")
-    current_day=$(date "+%d")
+    current_month=$((10#$(date "+%m")))
+    current_day=$((10#$(date "+%d")))
 
-    local today_name
-    today_name=$(format_daily_name "$current_month" "$current_day")
+    # Collect daily folders first so we don't mutate the tree mid-traversal.
+    # Daily folders may sit at the Downloads root or nested inside a week folder.
+    local day_dirs=()
+    local d
+    while IFS= read -r -d '' d; do
+        day_dirs+=("$d")
+    done < <(find "$DOWNLOADS_DIR" -mindepth 1 -type d -print0 2>/dev/null)
 
-    # Find all daily folders matching pattern "Mon D" or "Mon DD" (e.g., "Jan 14")
-    while IFS= read -r -d '' day_dir; do
+    local day_dir
+    for day_dir in "${day_dirs[@]}"; do
+        # May have already been moved/removed by an earlier iteration
+        [[ -d "$day_dir" ]] || continue
+
         local dirname
         dirname=$(basename "$day_dir")
 
-        # Skip today's folder
-        [[ "$dirname" == "$today_name" ]] && continue
+        # Match daily folder pattern "Mon D" or "Mon DD" (e.g., "Jan 14")
+        [[ "$dirname" =~ ^([A-Z][a-z]{2})\ ([0-9]{1,2})$ ]] || continue
+        local month_abbr="${BASH_REMATCH[1]}"
+        local day_num="${BASH_REMATCH[2]}"
 
-        # Parse the folder name to extract month and day
-        # Expected format: "Jan 14" or "Jan 1"
-        if [[ "$dirname" =~ ^([A-Z][a-z]{2})\ ([0-9]{1,2})$ ]]; then
-            local month_abbr="${BASH_REMATCH[1]}"
-            local day_num="${BASH_REMATCH[2]}"
-
-            # Find month number from abbreviation
-            local month_num=0
-            for i in {1..12}; do
-                if [[ "${MONTH_ABBREV[$i]}" == "$month_abbr" ]]; then
-                    month_num=$i
-                    break
-                fi
-            done
-
-            if [[ "$month_num" -eq 0 ]]; then
-                continue
+        # Find month number from abbreviation
+        local month_num=0
+        local i
+        for i in {1..12}; do
+            if [[ "${MONTH_ABBREV[$i]}" == "$month_abbr" ]]; then
+                month_num=$i
+                break
             fi
+        done
+        [[ "$month_num" -eq 0 ]] && continue
 
-            # Determine year using smarter logic
-            # Check folder modification time to help determine year
-            local folder_mtime_year
+        # Determine the destination week folder
+        local parent_dir parent_name week_dir
+        parent_dir=$(dirname "$day_dir")
+        parent_name=$(basename "$parent_dir")
+
+        if [[ "$parent_name" =~ ^Week\ [0-9]+\ \( ]]; then
+            # Already nested inside a week folder — flatten straight into it
+            week_dir="$parent_dir"
+        else
+            # Compute the week folder and place it beside the daily folder
+            local folder_mtime_year year
             folder_mtime_year=$(stat -f "%Sm" -t "%Y" "$day_dir" 2>/dev/null)
-
-            local year="$current_year"
-
-            # If folder was modified in a different year, use that
+            year="$current_year"
             if [[ -n "$folder_mtime_year" && "$folder_mtime_year" != "$current_year" ]]; then
                 year="$folder_mtime_year"
-            # Otherwise, use month comparison but handle year boundary
-            elif [[ "$month_num" -gt "$((10#$current_month))" ]]; then
+            elif [[ "$month_num" -gt "$current_month" ]]; then
                 year=$((current_year - 1))
-            elif [[ "$month_num" -eq "$((10#$current_month))" && "$day_num" -gt "$((10#$current_day))" ]]; then
-                # Same month but day is in the future - must be last year
+            elif [[ "$month_num" -eq "$current_month" && "$day_num" -gt "$current_day" ]]; then
                 year=$((current_year - 1))
             fi
 
-            # Get week info
-            local week_info
+            local week_info week_num week_start week_end week_name
             week_info=$(get_week_info "$year" "$(printf '%02d' $month_num)" "$day_num")
-            local week_num week_start week_end
             week_num=$(echo "$week_info" | cut -d'|' -f1)
             week_start=$(echo "$week_info" | cut -d'|' -f2)
             week_end=$(echo "$week_info" | cut -d'|' -f3)
-
-            # Format week folder name
-            local week_name
             week_name=$(format_weekly_name "$(printf '%02d' $month_num)" "$week_num" "$week_start" "$week_end")
-            local week_dir="$DOWNLOADS_DIR/$week_name"
-
-            # Create week folder if it doesn't exist
-            if [[ "$DRY_RUN" != "true" ]]; then
-                mkdir -p "$week_dir"
-            fi
-
-            # Merge day folder into week folder (handles existing folders)
-            merge_folders "$day_dir" "$week_dir"
-            log "Moved $dirname to $week_name"
+            week_dir="$parent_dir/$week_name"
         fi
 
-    done < <(find "$DOWNLOADS_DIR" -maxdepth 1 -type d -print0 2>/dev/null)
+        if [[ "$DRY_RUN" == "true" ]]; then
+            echo "  Would flatten daily folder: $dirname -> $(basename "$week_dir")/"
+        else
+            mkdir -p "$week_dir"
+        fi
+
+        # Move the daily folder's category subfolders (and any stray files) up
+        # into the week folder, merging with any existing categories.
+        find "$day_dir" -mindepth 1 -maxdepth 1 -print0 2>/dev/null | while IFS= read -r -d '' item; do
+            if [[ -d "$item" ]]; then
+                merge_folders "$item" "$week_dir"
+            else
+                move_file_safe "$item" "$week_dir"
+            fi
+        done
+
+        # Remove the now-empty daily folder
+        if [[ "$DRY_RUN" != "true" ]]; then
+            rmdir "$day_dir" 2>/dev/null || true
+        fi
+        log "Flattened daily folder $dirname into $(basename "$week_dir")"
+    done
 }
 
 rollup_weekly_to_monthly() {
@@ -694,11 +778,12 @@ cmd_run() {
     # Step 1: Ensure current month folder exists
     ensure_month_folder
 
-    # Step 2: Organize loose files from previous days (today's files stay loose)
+    # Step 2: Organize loose files from previous days into weekly folders
+    #         (today's files stay loose until the next midnight run)
     organize_loose_files
 
-    # Step 3: Roll up completed days into week folders
-    rollup_daily_to_weekly
+    # Step 3: Flatten any legacy daily folders into their weekly folder
+    flatten_daily_folders
 
     # Step 4: Roll up completed weeks into month folders
     rollup_weekly_to_monthly
